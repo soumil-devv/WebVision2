@@ -66,15 +66,21 @@ def verdict(value, profile):
     return "safe" if value <= safe else "avoid" if value > avoid else "caution"
 
 
+# The score range for each verdict, so the number always agrees with the words.
+SCORE_BANDS = {"safe": (70, 100), "caution": (40, 69), "avoid": (0, 39)}
+
+
 def score(value, temp, humidity, wind_kmh, uv, profile):
-    """0-100 exercise score: weighted penalties for NAQI (60), temperature (15), humidity (10), UV (10), wind (5)."""
+    """0-100 exercise score. NAQI places it within its verdict's band; bad weather lowers it towards the band's floor."""
+    safe, avoid = limits(profile)
+    floor, top = SCORE_BANDS[verdict(value, profile)]
+    air = min(np.interp(value, [0, safe, avoid, 500], [100, 70, 40, 0]), top)
     clamp = lambda x: min(max(x, 0.0), 1.0)
-    penalty = (60 * clamp(value / limits(profile)[1])
-               + 15 * clamp((abs(temp - 18) - 8) / 12)  # comfortable between 10 and 26 °C
-               + 10 * clamp((humidity - 70) / 30)
-               + 10 * clamp(uv / 10)
-               + 5 * clamp((wind_kmh - 20) / 30))
-    return round(100 - penalty)
+    weather = (.375 * clamp((abs(temp - 18) - 8) / 12)  # comfortable between 10 and 26 °C
+               + .25 * clamp((humidity - 70) / 30)
+               + .25 * clamp(uv / 10)
+               + .125 * clamp((wind_kmh - 20) / 30))
+    return round(float(floor + (air - floor) * (1 - weather)))
 
 
 def advice(rows, i):

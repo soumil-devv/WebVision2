@@ -36,8 +36,24 @@ def test_category_boundaries():
 def test_same_naqi_differs_by_profile():
     walker, asthmatic_runner = Profile(), Profile(asthma=True, activity="run")
     assert verdict(110, walker) == "safe" and verdict(110, asthmatic_runner) == "avoid"
-    assert score(20, 18, 50, 10, 0, walker) == 95
+    assert score(20, 18, 50, 10, 0, walker) == 96
     assert score(500, 45, 100, 60, 12, walker) == 0
+
+
+@pytest.mark.parametrize("profile", [Profile(), Profile(activity="run"), Profile(age="senior"), Profile(asthma=True)])
+@pytest.mark.parametrize("weather", [(18, 50, 10, 0), (45, 100, 60, 12)])  # perfect and terrible
+def test_score_always_agrees_with_the_verdict(profile, weather):
+    bands = {"safe": (70, 100), "caution": (40, 69), "avoid": (0, 39)}
+    for value in range(0, 501, 5):
+        low, high = bands[verdict(value, profile)]
+        assert low <= score(value, *weather, profile) <= high
+
+
+def test_score_falls_as_air_worsens_and_weather_only_lowers_it():
+    asthma = Profile(asthma=True)
+    scores = [score(v, 18, 50, 10, 0, asthma) for v in range(0, 501, 5)]
+    assert scores == sorted(scores, reverse=True)
+    assert score(88, 18, 50, 10, 0, asthma) > score(88, 42, 95, 40, 9, asthma) >= 40
 
 
 def test_grid_snaps_and_refuses_large_boxes():

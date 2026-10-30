@@ -71,6 +71,7 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 #play { width: 36px; height: 36px; background: none; }
 #play svg { fill: currentColor; }
 #hour-label { min-width: 11ch; }
+#score { order: 1; margin-left: auto; font-size: 22px; white-space: nowrap; }
 #strip { position: relative; height: 44px; margin-top: 4px; }
 #bars { position: absolute; inset: 0; display: flex; align-items: flex-end; gap: 2px; }
 #bars span { flex: 1; min-width: 0; min-height: 4px; transition: height .4s cubic-bezier(.16, 1, .3, 1); }
@@ -120,6 +121,8 @@ footer p:not(#sign-off) { max-width: 70ch; font-size: 16px; }
   #map-wrap { min-height: 60svh; }
   #legend { font-size: 11px; }
   #chat-open { bottom: 148px; padding: 10px 14px; }
+  #score { order: 0; }
+  #best { order: 1; flex-basis: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
   html, body, #bars span, #thumb, button { transition: none; }

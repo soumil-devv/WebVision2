@@ -113,7 +113,8 @@ function showHour(flood = false) {
   paintField(h);
   if (velocity && wind) velocity.setData(windData(h));
   if (!row) return;
-  $("#hour").setAttribute("aria-valuetext", `${row.local}, NAQI ${row.naqi}, ${row.category}`);
+  $("#hour").setAttribute("aria-valuetext", `${row.local}, NAQI ${row.naqi}, ${row.category}, score ${row.score} out of 100`);
+  $("#score").textContent = `Score ${row.score}/100`;
   setAir(row.naqi, flood);
   $("#verdict").textContent = headline(row, h === 0);
   $("#reading").textContent = `NAQI ${row.naqi} in ${state.place} ${h ? `on ${row.local}` : "right now"}. ${row.category}, mostly ${POLLUTANT[row.dominant] || row.dominant}.`;
@@ -127,7 +128,7 @@ function renderWindow(w) {
   Object.assign(state, { hours: w.hours, best: w.best });
   $("#bars").replaceChildren(...w.hours.map((r) => el("span", { style: `height:${Math.max(r.score, 8)}%;background:${SCALE[level(r.naqi)]};opacity:${r.verdict === "avoid" ? .45 : 1}` })));
   const good = w.best.verdict !== "avoid";
-  $("#best").textContent = good ? `Best in the next 24 hours: ${w.best.local}` : "No good window in the next 24 hours";
+  $("#best").textContent = good ? `Best in the next 24 hours: ${w.best.local}, score ${w.best.score}/100` : "No good window in the next 24 hours";
   $("#best").disabled = !good;
   showHour(true);
 }
@@ -140,6 +141,7 @@ function failWindow(error) {
   $("#stats").replaceChildren();
   $("#bars").replaceChildren();
   $("#best").textContent = "";
+  $("#score").textContent = "";
 }
 
 $("#best").onclick = () => {

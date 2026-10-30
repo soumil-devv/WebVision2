@@ -13,7 +13,7 @@ BreathEasy is a website that shows air quality (India's National AQI, NAQI) acro
 - **NAQI map:** a colour-coded map of the area in view, using the official CPCB categories.
 - **48-hour forecast slider:** drag or play through the coming hours to see how air quality is expected to change.
 - **Personal health profile:** asthma, age and activity type change the safe and avoid limits. The profile is stored only in the browser.
-- **Best time to exercise:** an hourly 0–100 score combining NAQI, temperature, humidity, wind and UV.
+- **Best time to exercise:** an hourly 0–100 score combining NAQI, temperature, humidity, wind and UV. 70–100 means safe, 40–69 caution and 0–39 avoid, matching the verdict shown.
 - **Cleanest spots nearby:** named parks within 4 km, ranked by air quality and distance.
 - **Wind layer:** animated particles showing where the air is moving.
 - **AI health advisor:** a chat, powered by Gemini, that answers questions like "Can I jog at 6 PM near Dwarka?" using the app's live data.
