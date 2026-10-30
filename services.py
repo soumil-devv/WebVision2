@@ -17,7 +17,7 @@ OVERPASS = ("https://overpass-api.de/api/interpreter", "https://maps.mail.ru/osm
 POLLUTANTS = ("pm2_5", "pm10", "no2", "o3", "co", "so2", "nh3")
 
 # Upstash when configured (shared across serverless instances), else a per-instance dict.
-redis = Redis.from_env() if os.getenv("UPSTASH_REDIS_REST_URL") else None
+redis = Redis(os.environ["UPSTASH_KV_REST_API_URL"], os.environ["UPSTASH_KV_REST_API_TOKEN"]) if os.getenv("UPSTASH_KV_REST_API_URL") else None
 _memory: dict[str, tuple[float, object]] = {}
 
 
