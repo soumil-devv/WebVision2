@@ -50,13 +50,14 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 #stats dd { font-size: 26px; font-weight: 600; line-height: 1.2; }
 
 #where { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: var(--gap); padding: 40px var(--gap) 64px; }
-#map-wrap { position: relative; min-height: 72svh; }
+#map-wrap { position: relative; min-height: 72svh; border: 8px solid var(--ink); transition: border-color .4s ease-out; }
 #map { position: absolute; inset: 0; background: var(--night); }
 .air-field { filter: blur(14px); }
 #status { position: absolute; z-index: 1000; top: 12px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 24px); padding: 6px 14px; background: var(--night); color: var(--on-night); font-size: 15px; }
 #wind-switch { position: absolute; z-index: 1000; top: 12px; right: 12px; display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--night); color: var(--on-night); font-size: 15px; cursor: pointer; }
 #wind-toggle { accent-color: var(--on-night); }
-#legend { position: absolute; z-index: 1000; left: 12px; bottom: 28px; right: 12px; display: flex; max-width: 520px; font-size: 13px; line-height: 1.2; color: #111; pointer-events: none; }
+#map-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+#legend { display: flex; font-size: 13px; line-height: 1.2; color: #111; }
 #legend span { flex: 1; padding: 5px 6px; min-width: 0; }
 #legend .dark { color: #fff; }
 #spots-col { display: flex; flex-direction: column; gap: 16px; }

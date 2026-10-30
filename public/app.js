@@ -148,7 +148,7 @@ $("#best").onclick = () => {
 };
 
 // ---------- Map ----------
-const map = L.map("map", { preferCanvas: true, scrollWheelZoom: false }).setView([state.lat, state.lon], 11);
+const map = L.map("map", { preferCanvas: true, wheelPxPerZoomLevel: 120 }).setView([state.lat, state.lon], 11);
 const marker = L.circleMarker([state.lat, state.lon], { radius: 9, color: "#12171a", weight: 3, fillColor: "#fff", fillOpacity: 1 }).addTo(map);
 const spotLayer = L.layerGroup().addTo(map);
 let grid = null, field = null, wind = null, velocity = null, loadId = 0, placeId = 0;
@@ -177,7 +177,7 @@ function paintField(h) {
   });
   draw.putImageData(image, 0, 0);
   const bounds = [[south, west], [south + rows * size, west + cols * size]], url = fieldCanvas.toDataURL();
-  if (!field) field = L.imageOverlay(url, bounds, { opacity: .62, className: "air-field" }).addTo(map);
+  if (!field) field = L.imageOverlay(url, bounds, { opacity: .15, className: "air-field" }).addTo(map);
   else field.setBounds(bounds).setUrl(url);
 }
 
