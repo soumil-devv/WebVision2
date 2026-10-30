@@ -1,16 +1,17 @@
 "use strict";
 
-// CPCB NAQI category colours and names: Good ≤50, Satisfactory ≤100, Moderately polluted ≤200, Poor ≤300, Very poor ≤400, Severe.
-const COLORS = ["#00b050", "#92d050", "#ffff00", "#ff9900", "#ff0000", "#c00000"];
-const NAMES = ["Good (0–50)", "Satisfactory (51–100)", "Moderate (101–200)", "Poor (201–300)", "Very poor (301–400)", "Severe (401+)"];
-const VERDICT = { safe: "#2e9e5b", caution: "#e0a100", avoid: "#d9372b" };
-const POLLUTANT = { pm2_5: "PM2.5", pm10: "PM10", no2: "NO₂", o3: "O₃", co: "CO", so2: "SO₂", nh3: "NH₃" };
+// The ground and ink of the page for each CPCB category, and the stronger colours used on the map and timeline.
+const AIR = [["#9bdcb2", "#0b2a1b"], ["#cfe68a", "#232c08"], ["#f5dc66", "#352800"], ["#f4a057", "#351400"], ["#c9302a", "#fff5f0"], ["#5f1220", "#ffe9e4"]];
+const SCALE = ["#1fa85f", "#9ccc3c", "#f2c81e", "#f0801f", "#d62a1f", "#7d0f22"];
+const NAMES = ["Good", "Satisfactory", "Moderate", "Poor", "Very poor", "Severe"];
+const STOPS = [25, 75, 150, 250, 350, 450]; // the middle of each category, for smooth colour between them
+const POLLUTANT = { pm2_5: "PM2.5", pm10: "PM10", no2: "NO₂", o3: "ozone", co: "CO", so2: "SO₂", nh3: "ammonia" };
 const SKY = [[0, "Clear"], [3, "Partly cloudy"], [48, "Fog"], [57, "Drizzle"], [67, "Rain"], [77, "Snow"], [82, "Showers"], [99, "Thunderstorm"]];
+const STILL = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 const $ = (selector) => document.querySelector(selector);
 const level = (naqi) => [50, 100, 200, 300, 400].filter((b) => naqi > b).length;
-const sky = (code) => (SKY.find(([max]) => code <= max) || [0, "—"])[1];
-const hourLabel = (unix) => new Date(unix * 1000).toLocaleString([], { weekday: "short", hour: "numeric" });
+const sky = (code) => (SKY.find(([max]) => code <= max) || [0, "Unknown"])[1];
 
 // Build an element; strings become text nodes, so API data is never parsed as HTML.
 function el(tag, props = {}, ...children) {
@@ -25,7 +26,7 @@ async function api(path, body) {
   try {
     response = await fetch(`/api/${path}`, options);
   } catch {
-    throw new Error("Network error. Check your connection.");
+    throw new Error("We can't reach the network. Check your connection and try again.");
   }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(typeof data.detail === "string" ? data.detail : `Request failed (${response.status}).`);
@@ -45,28 +46,139 @@ function loadProfile() {
   }
 }
 
-const state = { lat: 28.6139, lon: 77.209, profile: loadProfile() }; // default: New Delhi
+const state = { lat: 28.6139, lon: 77.209, place: "New Delhi", profile: loadProfile(), hours: [], best: null, airLevel: null };
+const hourIndex = () => +$("#hour").value;
+
+// ---------- The air: colour of the page and the particles in it ----------
+function setAir(naqi, flood = false) {
+  const lv = level(naqi);
+  if (lv === state.airLevel) return;
+  const [ground, ink] = AIR[lv], root = document.documentElement.style, first = state.airLevel === null;
+  state.airLevel = lv;
+  root.setProperty("--ink", ink);
+  $('meta[name="theme-color"]').content = ground;
+  drawParticles();
+  if (!flood || STILL) return root.setProperty("--air", ground);
+  // The new air spreads out from the middle of the screen, like a breath.
+  const layer = $("#flood");
+  layer.style.background = ground;
+  layer.style.visibility = "visible";
+  layer.animate([{ clipPath: "circle(0% at 50% 42%)" }, { clipPath: "circle(150% at 50% 42%)" }],
+    { duration: first ? 1800 : 1200, easing: "cubic-bezier(.16, 1, .3, 1)" }).finished.then(() => {
+    root.setProperty("--air", ground);
+    layer.style.visibility = "hidden";
+  });
+}
+
+const canvas = $("#particles"), pen = canvas.getContext("2d");
+let specks = [];
+function sizeCanvas() {
+  canvas.width = innerWidth;
+  canvas.height = innerHeight;
+  specks = Array.from({ length: 700 }, () => ({ x: Math.random() * innerWidth, y: Math.random() * innerHeight, r: 1 + Math.random() * 2.4, drift: .5 + Math.random() }));
+  drawParticles();
+}
+function drawParticles() {
+  const row = state.hours[hourIndex()], count = row ? Math.min(40 + row.naqi * 1.3, specks.length) : 40;
+  pen.clearRect(0, 0, canvas.width, canvas.height);
+  pen.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--ink");
+  pen.globalAlpha = .42;
+  for (let i = 0; i < count; i++) pen.fillRect(specks[i].x, specks[i].y, specks[i].r, specks[i].r);
+}
+function moveParticles() {
+  const row = state.hours[hourIndex()];
+  if (row) {
+    // Wind direction is where it blows from, so the air moves the opposite way.
+    const angle = row.wind_dir * Math.PI / 180, speed = .12 + row.wind_kmh * .05;
+    for (const s of specks) {
+      s.x = (s.x - Math.sin(angle) * speed * s.drift + innerWidth) % innerWidth;
+      s.y = (s.y + Math.cos(angle) * speed * s.drift + innerHeight) % innerHeight;
+    }
+    drawParticles();
+  }
+  requestAnimationFrame(moveParticles);
+}
+
+// ---------- The answer for the chosen hour ----------
+function headline(row, now) {
+  if (row.naqi > 300) return "Stay inside unless you must.";
+  if (row.verdict === "avoid") return now ? "Better to stay in for now." : "Better to stay in then.";
+  return row.verdict === "caution" ? "Go out, but take it easy." : "You're fine to go out.";
+}
+
+function showHour(flood = false) {
+  const h = hourIndex(), row = state.hours[h], stamp = grid ? grid.hours[h] : Math.floor(Date.now() / 3.6e6) * 3600 + h * 3600;
+  $("#thumb").style.left = `calc(${(h + .5) / 48 * 100}% - 1.5px)`;
+  $("#hour-label").textContent = row ? (h ? row.local : "Right now") : new Date(stamp * 1000).toLocaleString([], { weekday: "short", hour: "numeric" });
+  paintField(h);
+  if (velocity && wind) velocity.setData(windData(h));
+  if (!row) return;
+  $("#hour").setAttribute("aria-valuetext", `${row.local}, NAQI ${row.naqi}, ${row.category}`);
+  setAir(row.naqi, flood);
+  $("#verdict").textContent = headline(row, h === 0);
+  $("#reading").textContent = `NAQI ${row.naqi} in ${state.place} ${h ? `on ${row.local}` : "right now"}. ${row.category}, mostly ${POLLUTANT[row.dominant] || row.dominant}.`;
+  $("#advice").textContent = row.advice;
+  $("#stats").replaceChildren(...[["Temperature", `${Math.round(row.temp)}°C`], ["Chance of rain", `${row.rain_chance}%`], ["Humidity", `${row.humidity}%`],
+    ["Wind", `${Math.round(row.wind_kmh)} km/h`], ["Cloud cover", `${row.clouds}%`], ["UV", `${Math.round(row.uv)}`]]
+    .map(([name, value]) => el("div", {}, el("dt", {}, name), el("dd", {}, value))));
+}
+
+function renderWindow(w) {
+  Object.assign(state, { hours: w.hours, best: w.best });
+  $("#bars").replaceChildren(...w.hours.map((r) => el("span", { style: `height:${Math.max(r.score, 8)}%;background:${SCALE[level(r.naqi)]};opacity:${r.verdict === "avoid" ? .45 : 1}` })));
+  const good = w.best.verdict !== "avoid";
+  $("#best").textContent = good ? `Best in the next 24 hours: ${w.best.local}` : "No good window in the next 24 hours";
+  $("#best").disabled = !good;
+  showHour(true);
+}
+
+function failWindow(error) {
+  Object.assign(state, { hours: [], best: null });
+  $("#verdict").textContent = "We can't read the air right now.";
+  $("#reading").replaceChildren();
+  $("#advice").replaceChildren(el("span", { className: "error" }, `${error.message} `), el("button", { className: "link", onclick: refreshPlace }, "Try again"));
+  $("#stats").replaceChildren();
+  $("#bars").replaceChildren();
+  $("#best").textContent = "";
+}
+
+$("#best").onclick = () => {
+  $("#hour").value = Math.max(state.hours.findIndex((r) => r.time === state.best.time), 0);
+  showHour();
+};
 
 // ---------- Map ----------
-const map = L.map("map", { preferCanvas: true }).setView([state.lat, state.lon], 11);
-const marker = L.marker([state.lat, state.lon]).addTo(map);
+const map = L.map("map", { preferCanvas: true, scrollWheelZoom: false }).setView([state.lat, state.lon], 11);
+const marker = L.circleMarker([state.lat, state.lon], { radius: 9, color: "#12171a", weight: 3, fillColor: "#fff", fillOpacity: 1 }).addTo(map);
 const spotLayer = L.layerGroup().addTo(map);
-let grid = null, cells = [], wind = null, velocity = null, loadId = 0;
+let grid = null, field = null, wind = null, velocity = null, loadId = 0, placeId = 0;
 
-$("#legend").append(el("strong", {}, "NAQI"), ...COLORS.map((c, i) => el("div", {}, el("i", { style: `background:${c}` }), NAMES[i])));
+$("#legend").append(...NAMES.map((name, i) => el("span", { className: i > 3 ? "dark" : "", style: `background:${SCALE[i]}` }, name)));
 
-function drawGrid() {
-  cells.forEach((c) => c.remove());
-  cells = [];
+// Mix the two nearest category colours, so the map reads as one continuous air field.
+const channels = SCALE.map((c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16)));
+function fieldColor(naqi) {
+  const upper = STOPS.findIndex((s) => naqi < s);
+  if (upper <= 0) return channels[upper < 0 ? channels.length - 1 : 0];
+  const t = (naqi - STOPS[upper - 1]) / (STOPS[upper] - STOPS[upper - 1]);
+  return channels[upper].map((c, i) => channels[upper - 1][i] + (c - channels[upper - 1][i]) * t);
+}
+
+const fieldCanvas = document.createElement("canvas");
+function paintField(h) {
   if (!grid) return;
-  const { south, west, size, rows, cols } = grid;
-  for (let i = 0; i < rows; i++) {
-    for (let j = 0; j < cols; j++) {
-      const bounds = [[south + i * size, west + j * size], [south + (i + 1) * size, west + (j + 1) * size]];
-      cells.push(L.rectangle(bounds, { stroke: false, fillOpacity: 0.45, interactive: false }).addTo(map));
-    }
-  }
-  showHour();
+  const { rows, cols, south, west, size, frames } = grid, draw = fieldCanvas.getContext("2d");
+  Object.assign(fieldCanvas, { width: cols, height: rows });
+  const image = draw.createImageData(cols, rows);
+  frames[h].forEach((naqi, k) => {
+    // Grid rows run south to north; image rows run top to bottom.
+    const y = rows - 1 - Math.floor(k / cols), at = (y * cols + k % cols) * 4;
+    image.data.set([...fieldColor(naqi), 255], at);
+  });
+  draw.putImageData(image, 0, 0);
+  const bounds = [[south, west], [south + rows * size, west + cols * size]], url = fieldCanvas.toDataURL();
+  if (!field) field = L.imageOverlay(url, bounds, { opacity: .62, className: "air-field" }).addTo(map);
+  else field.setBounds(bounds).setUrl(url);
 }
 
 const windData = (h) => ["u", "v"].map((key, n) => ({
@@ -74,19 +186,12 @@ const windData = (h) => ["u", "v"].map((key, n) => ({
   data: wind[key][h],
 }));
 
-function showHour() {
-  const h = +$("#hour").value;
-  $("#hour-label").textContent = hourLabel(grid ? grid.hours[h] : Math.floor(Date.now() / 3.6e6) * 3600 + h * 3600);
-  if (grid) cells.forEach((c, k) => c.setStyle({ fillColor: COLORS[level(grid.frames[h][k])] }));
-  if (velocity && wind) velocity.setData(windData(h));
-}
-
 function showWind() {
   if (!$("#wind-toggle").checked || !wind) return;
-  if (velocity) return velocity.setData(windData(+$("#hour").value));
+  if (velocity) return velocity.setData(windData(hourIndex()));
   velocity = L.velocityLayer({
-    data: windData(+$("#hour").value), displayValues: false, maxVelocity: 15,
-    velocityScale: 0.01, lineWidth: 1.5, colorScale: ["rgba(20, 24, 30, 0.75)"],
+    data: windData(hourIndex()), displayValues: false, maxVelocity: 15,
+    velocityScale: 0.01, lineWidth: 1.5, colorScale: ["rgba(18, 23, 26, .8)"],
   }).addTo(map);
 }
 
@@ -95,11 +200,12 @@ async function loadLayers() {
   const clamp = (lon) => Math.min(Math.max(lon, -180), 180);
   const query = `south=${b.getSouth()}&west=${clamp(b.getWest())}&north=${b.getNorth()}&east=${clamp(b.getEast())}`;
   const wantWind = $("#wind-toggle").checked;
-  setStatus("Loading air-quality map…");
+  setStatus("Reading the air on the map…");
   const [aq, wd] = await Promise.allSettled([api(`naqi/grid?${query}`), wantWind ? api(`wind/grid?${query}`) : null]);
   if (id !== loadId) return; // a newer request superseded this one
   grid = aq.status === "fulfilled" ? aq.value : null;
-  drawGrid();
+  if (!grid && field) { field.remove(); field = null; }
+  paintField(hourIndex());
   if (wantWind) wind = wd.status === "fulfilled" ? wd.value : null;
   showWind();
   const failed = [aq, wd].find((r) => r.status === "rejected");
@@ -108,81 +214,58 @@ async function loadLayers() {
 
 let moveTimer;
 map.on("moveend", () => { clearTimeout(moveTimer); moveTimer = setTimeout(loadLayers, 400); });
-map.on("click", (e) => setLocation(e.latlng.wrap().lat, e.latlng.wrap().lng));
+map.on("click", (e) => setLocation(e.latlng.wrap().lat, e.latlng.wrap().lng, "this spot"));
 
-$("#hour").oninput = showHour;
+$("#hour").oninput = () => showHour();
 $("#wind-toggle").onchange = () => {
   if (velocity) { velocity.remove(); velocity = null; }
   if ($("#wind-toggle").checked) loadLayers();
 };
 let playTimer = null;
 $("#play").onclick = () => {
-  if (playTimer) {
-    clearInterval(playTimer);
-    playTimer = null;
-    $("#play").textContent = "▶";
-    return;
-  }
-  $("#play").textContent = "❚❚";
-  playTimer = setInterval(() => { $("#hour").value = (+$("#hour").value + 1) % 48; showHour(); }, 700);
+  const playing = !playTimer;
+  clearInterval(playTimer);
+  playTimer = playing ? setInterval(() => { $("#hour").value = (hourIndex() + 1) % 48; showHour(); }, 600) : null;
+  $("#play-shape").setAttribute("d", playing ? "M7 4h3v16H7zM14 4h3v16h-3z" : "M7 4l13 8-13 8z");
+  $("#play").setAttribute("aria-label", playing ? "Pause" : "Play the next 48 hours");
 };
 
-// ---------- Location panel ----------
-const stat = (name, value) => [el("dt", {}, name), el("dd", {}, value)];
-const fail = (selector, error) => $(selector).replaceChildren(el("p", { className: "error" }, error.message));
+// ---------- Parks and the week ----------
+function renderSpots(spots) {
+  spotLayer.clearLayers();
+  if (!spots.length) return $("#spots").replaceChildren(el("li", {}, "We couldn't find a named park within 4 km of here."));
+  $("#spots").replaceChildren(...spots.map((s) => {
+    L.circleMarker([s.lat, s.lon], { radius: 7, color: "#12171a", weight: 2, fillColor: SCALE[level(s.naqi)], fillOpacity: 1 }).bindTooltip(s.name).addTo(spotLayer);
+    return el("li", {},
+      el("button", { className: "link", onclick: () => map.flyTo([s.lat, s.lon], 15) }, s.name),
+      el("span", {}, `${s.distance_km} km away. NAQI ${s.naqi}, ${{ safe: "good for you", caution: "okay with care", avoid: "better avoided" }[s.verdict]} now.`));
+  }));
+}
 
-function renderWeather(w) {
-  const c = w.current, d = w.daily;
-  $("#wx-now").replaceChildren(
-    el("div", { className: "row" },
-      el("div", { className: "temp" }, `${Math.round(c.temperature_2m)}°C`),
-      el("div", {}, el("strong", {}, sky(c.weather_code)), el("p", { className: "muted" }, `Feels like ${Math.round(c.apparent_temperature)}°C`))),
-    el("dl", { className: "stats" },
-      ...stat("Humidity", `${c.relative_humidity_2m}%`), ...stat("Rain today", `${d.precipitation_probability_max[0] ?? "–"}%`),
-      ...stat("Wind", `${Math.round(c.wind_speed_10m)} km/h`), ...stat("Clouds", `${c.cloud_cover}%`),
-      ...stat("UV", `${c.uv_index ?? "–"}`), ...stat("Rain now", `${c.precipitation} mm`)));
+function renderWeek(w) {
+  const d = w.daily;
   $("#days").replaceChildren(...d.time.map((t, i) => el("div", { className: "day" },
     el("strong", {}, new Date((t + w.utc_offset_seconds) * 1000).toLocaleDateString([], { weekday: "short", timeZone: "UTC" })),
     el("span", {}, sky(d.weather_code[i])),
     el("span", {}, `${Math.round(d.temperature_2m_max[i])}° / ${Math.round(d.temperature_2m_min[i])}°`),
-    el("span", { className: "muted" }, `☂ ${d.precipitation_probability_max[i] ?? "–"}%`))));
+    el("span", {}, `Rain ${d.precipitation_probability_max[i] ?? 0}%`))));
 }
 
-function renderWindow(w) {
-  const now = w.hours[0], lv = level(now.naqi);
-  $("#aqi-now").replaceChildren(
-    el("div", { className: "badge", style: `background:${COLORS[lv]};color:${lv >= 4 ? "#fff" : "#111"}` }, String(now.naqi)),
-    el("div", {}, el("strong", {}, `NAQI · ${now.category}`),
-      el("p", { className: "muted" }, `Main pollutant ${POLLUTANT[now.dominant]} · `, el("span", { style: `color:${VERDICT[now.verdict]}` }, now.verdict), " for you now")));
-  const b = w.best;
-  $("#best").textContent = `${b.local}: score ${b.score}/100, NAQI ${b.naqi} (${b.verdict}).`;
-  $("#bars").replaceChildren(...w.hours.slice(0, 24).map((r) =>
-    el("span", { title: `${r.local}: score ${r.score}, NAQI ${r.naqi}, ${r.verdict}`, style: `height:${r.score}%;background:${VERDICT[r.verdict]}` })));
-  $("#limits").textContent = `For your profile: safe up to NAQI ${w.limits.safe}, avoid above ${w.limits.avoid}.`;
-}
-
-function renderSpots(spots) {
-  spotLayer.clearLayers();
-  if (!spots.length) return $("#spots").replaceChildren(el("li", { className: "muted" }, "No named parks found within 4 km."));
-  $("#spots").replaceChildren(...spots.map((s) => {
-    L.circleMarker([s.lat, s.lon], { radius: 7, color: VERDICT[s.verdict], weight: 3 }).bindTooltip(s.name).addTo(spotLayer);
-    return el("li", {},
-      el("button", { className: "link", onclick: () => map.flyTo([s.lat, s.lon], 15) }, s.name),
-      el("span", { className: "muted" }, ` ${s.distance_km} km · NAQI ${s.naqi} · ${s.verdict}`));
-  }));
-}
-
+// ---------- Choosing a place and a profile ----------
 function refreshPlace() {
-  const body = { lat: state.lat, lon: state.lon, profile: state.profile };
-  api(`weather?lat=${state.lat}&lon=${state.lon}`).then(renderWeather, (e) => fail("#wx-now", e));
-  api("safe-window", body).then(renderWindow, (e) => { fail("#aqi-now", e); $("#best").textContent = ""; $("#bars").replaceChildren(); });
-  api("safe-spots", body).then(renderSpots, (e) => fail("#spots", e));
+  const id = ++placeId, body = { lat: state.lat, lon: state.lon, profile: state.profile };
+  const current = (render) => (value) => { if (id === placeId) render(value); };
+  const message = (selector, tag) => current((e) => $(selector).replaceChildren(el(tag, { className: "error" }, e.message)));
+  api(`weather?lat=${state.lat}&lon=${state.lon}`).then(current(renderWeek), message("#days", "p"));
+  api("safe-window", body).then(current(renderWindow), current(failWindow));
+  api("safe-spots", body).then(current(renderSpots), message("#spots", "li"));
 }
 
-function setLocation(lat, lon, fly = false) {
-  Object.assign(state, { lat: +lat.toFixed(4), lon: +lon.toFixed(4) });
+function setLocation(lat, lon, place, fly = false) {
+  Object.assign(state, { lat: +lat.toFixed(4), lon: +lon.toFixed(4), place });
   marker.setLatLng([state.lat, state.lon]);
   if (fly) map.setView([state.lat, state.lon], 12);
+  $("#hour").value = 0;
   refreshPlace();
 }
 
@@ -191,26 +274,26 @@ $("#search").onsubmit = async (e) => {
   try {
     const places = await api(`geocode?q=${encodeURIComponent($("#q").value.trim())}`);
     $("#results").replaceChildren(...(places.length ? places.map((p) => el("li", {},
-      el("button", { className: "link", onclick: () => { $("#results").replaceChildren(); setLocation(p.lat, p.lon, true); } },
-        [p.name, p.state, p.country].filter(Boolean).join(", ")))) : [el("li", { className: "muted" }, "No places found.")]));
+      el("button", { className: "link", onclick: () => { $("#results").replaceChildren(); $("#q").value = ""; setLocation(p.lat, p.lon, p.name, true); } },
+        [p.name, p.state, p.country].filter(Boolean).join(", ")))) : [el("li", {}, "We couldn't find that place. Try a nearby city.")]));
   } catch (error) {
-    $("#results").replaceChildren(el("li", { className: "error" }, error.message));
+    $("#results").replaceChildren(el("li", {}, error.message));
   }
 };
 
 $("#locate").onclick = () => {
-  if (!navigator.geolocation) return setStatus("Location is not available in this browser.");
+  if (!navigator.geolocation) return setStatus("Your browser can't share a location. Search for a place instead.");
   navigator.geolocation.getCurrentPosition(
-    (p) => setLocation(p.coords.latitude, p.coords.longitude, true),
-    () => setStatus("Couldn't get your location. Search for a place instead."));
+    (p) => setLocation(p.coords.latitude, p.coords.longitude, "your location", true),
+    () => setStatus("We couldn't get your location. Search for a place instead."));
 };
 
 const profileForm = $("#profile");
-profileForm.asthma.checked = state.profile.asthma;
+profileForm.asthma.value = state.profile.asthma ? "1" : "";
 profileForm.age.value = state.profile.age;
 profileForm.activity.value = state.profile.activity;
 profileForm.onchange = () => {
-  state.profile = { asthma: profileForm.asthma.checked, age: profileForm.age.value, activity: profileForm.activity.value };
+  state.profile = { asthma: !!profileForm.asthma.value, age: profileForm.age.value, activity: profileForm.activity.value };
   try { localStorage.setItem("profile", JSON.stringify(state.profile)); } catch { /* storage unavailable: keep for this visit */ }
   refreshPlace();
 };
@@ -224,19 +307,22 @@ const addMessage = (role, text) => {
   return node;
 };
 $("#chat-open").onclick = () => { $("#chat").hidden = false; $("#chat-open").hidden = true; $("#msg").focus(); };
-$("#chat-close").onclick = () => { $("#chat").hidden = true; $("#chat-open").hidden = false; };
+$("#chat-close").onclick = () => { $("#chat").hidden = true; $("#chat-open").hidden = false; $("#chat-open").focus(); };
+document.querySelectorAll("#starters button").forEach((b) => { b.onclick = () => { $("#msg").value = b.textContent; $("#chat-form").requestSubmit(); }; });
 $("#chat-form").onsubmit = async (e) => {
   e.preventDefault();
   const text = $("#msg").value.trim(), send = $("#chat-form button");
   if (!text || send.disabled) return;
   $("#msg").value = "";
   send.disabled = true;
+  $("#starters")?.remove();
   addMessage("user", text);
   chatHistory.push({ role: "user", text });
-  const pending = addMessage("model", "Checking live data…");
+  const pending = addMessage("model", "Checking the live air…");
   try {
     // An odd-length tail of the alternating chatHistory always starts with a user message.
-    const { reply } = await api("chat", { lat: state.lat, lon: state.lon, profile: state.profile, messages: chatHistory.slice(-19) });
+    const place = `${text}\n(The user's chosen place is ${state.place}.)`;
+    const { reply } = await api("chat", { lat: state.lat, lon: state.lon, profile: state.profile, messages: [...chatHistory.slice(-19, -1), { role: "user", text: place }] });
     pending.textContent = reply;
     chatHistory.push({ role: "model", text: reply });
   } catch (error) {
@@ -251,10 +337,13 @@ $("#chat-form").onsubmit = async (e) => {
 api("config").catch(() => ({})).then(({ maptiler_key: key }) => {
   const osm = '<a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors</a>';
   const [url, attribution] = key
-    ? [`https://api.maptiler.com/maps/openstreetmap/256/{z}/{x}/{y}.png?key=${key}`, `<a href="https://www.maptiler.com/copyright/">© MapTiler</a> ${osm}`]
+    ? [`https://api.maptiler.com/maps/dataviz/256/{z}/{x}/{y}.png?key=${key}`, `<a href="https://www.maptiler.com/copyright/">© MapTiler</a> ${osm}`]
     : ["https://tile.openstreetmap.org/{z}/{x}/{y}.png", osm];
   L.tileLayer(url, { attribution, maxZoom: 19 }).addTo(map);
 });
+addEventListener("resize", sizeCanvas);
+sizeCanvas();
+if (!STILL) moveParticles();
 showHour();
 refreshPlace();
 loadLayers();

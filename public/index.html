@@ -3,84 +3,100 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>WebVision</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='7' fill='%2300b050'/></svg>">
-  <meta name="description" content="Weather and air quality (NAQI) with the safest times and places to exercise outdoors.">
+  <title>BreathEasy: know the air before you step out</title>
+  <meta name="description" content="See the air around you in India, and find out when and where it is safest for you to go outside.">
+  <meta name="theme-color" content="#e6ebe4">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='7' fill='%231fa85f'/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mukta:wght@400;600;700&family=Rozha+One&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-velocity@2.1.4/dist/leaflet-velocity.min.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <aside id="panel">
-    <header>
-      <h1>WebVision</h1>
-      <p class="muted">Weather and air quality for safer outdoor exercise</p>
+  <div id="flood" aria-hidden="true"></div>
+  <canvas id="particles" aria-hidden="true"></canvas>
+
+  <div id="air-view">
+    <header id="top">
+      <strong id="wordmark">BreathEasy</strong>
+      <form id="search" role="search">
+        <input id="q" type="search" placeholder="Search a place in India" aria-label="Search a place" required minlength="2" autocomplete="off">
+        <button class="quiet">Search</button>
+        <button type="button" id="locate" class="quiet icon" aria-label="Use my location" title="Use my location">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+        </button>
+        <ul id="results"></ul>
+      </form>
     </header>
 
-    <form id="search" role="search">
-      <input id="q" type="search" placeholder="Search a place…" aria-label="Search a place" required minlength="2">
-      <button>Search</button>
-      <button type="button" id="locate" title="Use my location" aria-label="Use my location">◎</button>
-    </form>
-    <ul id="results"></ul>
-
-    <section class="card">
-      <div id="aqi-now" class="row"><p class="muted">Loading air quality…</p></div>
-      <div id="wx-now"></div>
-    </section>
-
-    <section class="card">
-      <h2>Best time to exercise</h2>
-      <p id="best" class="muted">Loading…</p>
-      <div id="bars" class="bars" aria-hidden="true"></div>
-      <p class="muted small">Next 24 hours. Taller is better; colour shows the verdict for your profile.</p>
-    </section>
-
-    <section class="card">
-      <h2>Your profile</h2>
+    <main id="answer">
+      <h1 id="verdict">Reading the air…</h1>
+      <p id="reading" aria-live="polite"></p>
+      <p id="advice" aria-live="polite"></p>
       <form id="profile">
-        <label><input type="checkbox" name="asthma"> Asthma or another respiratory condition</label>
-        <label>Age
-          <select name="age"><option value="child">Child</option><option value="adult">Adult</option><option value="senior">60+</option></select>
-        </label>
-        <label>Activity
-          <select name="activity"><option value="walk">Walk</option><option value="jog">Jog</option><option value="run">Run</option><option value="cycle">Cycle</option></select>
-        </label>
+        <span>Advice for someone</span>
+        <select name="asthma" aria-label="Breathing condition"><option value="">without a breathing condition</option><option value="1">with asthma or a breathing condition</option></select>
+        <span>who is</span>
+        <select name="age" aria-label="Age"><option value="child">a child</option><option value="adult">an adult</option><option value="senior">over 60</option></select>
+        <span>and likes to</span>
+        <select name="activity" aria-label="Activity"><option value="walk">walk</option><option value="jog">jog</option><option value="run">run</option><option value="cycle">cycle</option></select>
       </form>
-      <p id="limits" class="muted small"></p>
+      <dl id="stats"></dl>
+    </main>
+
+    <section id="where" aria-labelledby="where-title">
+      <div id="map-wrap">
+        <div id="map"></div>
+        <div id="status" role="status" hidden></div>
+        <label id="wind-switch"><input type="checkbox" id="wind-toggle"> Show the wind</label>
+        <div id="legend"></div>
+      </div>
+      <div id="spots-col">
+        <h2 id="where-title">Where the air is cleaner</h2>
+        <p>Tap anywhere on the map to read the air there.</p>
+        <ol id="spots"><li>Looking for parks nearby…</li></ol>
+      </div>
     </section>
 
-    <section class="card">
-      <h2>Cleanest spots nearby</h2>
-      <ol id="spots"><li class="muted">Loading…</li></ol>
-    </section>
-
-    <section class="card">
-      <h2>7-day forecast</h2>
-      <div id="days"></div>
-    </section>
-
-    <p class="muted small">NAQI is estimated from modelled pollution data (OpenWeather) and may differ from local monitors. Not medical advice.</p>
-  </aside>
-
-  <main>
-    <div id="map"></div>
-    <div id="status" role="status" hidden></div>
-    <div id="legend" class="overlay"></div>
-    <div id="timebar" class="overlay">
-      <button id="play" aria-label="Play forecast">▶</button>
-      <input id="hour" type="range" min="0" max="47" value="0" aria-label="Forecast hour">
-      <span id="hour-label"></span>
-      <label><input type="checkbox" id="wind-toggle"> Wind</label>
+    <div id="timeline">
+      <div id="timeline-text">
+        <button id="play" class="icon" aria-label="Play the next 48 hours">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path id="play-shape" d="M7 4l13 8-13 8z"/></svg>
+        </button>
+        <strong id="hour-label"></strong>
+        <button id="best" class="link"></button>
+      </div>
+      <div id="strip">
+        <div id="bars" aria-hidden="true"></div>
+        <div id="thumb" aria-hidden="true"></div>
+        <input id="hour" type="range" min="0" max="47" value="0" aria-label="Choose an hour in the next 48 hours">
+      </div>
     </div>
-  </main>
+  </div>
 
-  <button id="chat-open">Ask the advisor</button>
-  <section id="chat" aria-label="Health advisor" hidden>
-    <header><strong>Health advisor</strong><button id="chat-close" class="ghost" aria-label="Close">✕</button></header>
-    <div id="log" aria-live="polite"><p class="msg model">Ask me things like “Can I jog at 6 PM near Dwarka?”</p></div>
+  <section id="week" aria-labelledby="week-title">
+    <h2 id="week-title">The week ahead</h2>
+    <div id="days"></div>
+  </section>
+
+  <footer>
+    <p id="sign-off">Breathe easy.</p>
+    <p>NAQI is estimated from modelled pollution data and may differ from local monitors. This is not medical advice: follow your doctor's guidance or your asthma action plan.</p>
+    <p>Air quality from OpenWeather. Weather from Open-Meteo. Parks and map data from OpenStreetMap contributors.</p>
+  </footer>
+
+  <button id="chat-open">Ask about your air</button>
+  <section id="chat" aria-label="Air advisor" hidden>
+    <header><strong>Ask about your air</strong><button id="chat-close" class="icon" aria-label="Close">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19"/></svg></button></header>
+    <div id="log" aria-live="polite">
+      <p class="msg model">I check the live air for you, using the profile you set.</p>
+      <div id="starters"><button class="link">Can I go out at 6 PM?</button><button class="link">Which park is best right now?</button></div>
+    </div>
     <form id="chat-form">
-      <input id="msg" placeholder="Ask about air quality or exercise…" aria-label="Message" required maxlength="2000" autocomplete="off">
+      <input id="msg" placeholder="Ask about going outside" aria-label="Message" required maxlength="2000" autocomplete="off">
       <button>Send</button>
     </form>
   </section>

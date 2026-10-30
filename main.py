@@ -1,4 +1,4 @@
-"""WebVision2: FastAPI backend under /api, plus the static frontend in public/."""
+"""BreathEasy: FastAPI backend under /api, plus the static frontend in public/."""
 
 import asyncio
 import logging
@@ -102,7 +102,8 @@ async def safe_window(lat, lon, profile):
         row = {"time": ti, "local": time.strftime("%a %H:%M", time.gmtime(ti + wx["utc_offset_seconds"])),
                "naqi": int(values[j]), "category": category(values[j]), "dominant": dominant[j],
                "temp": get("temperature_2m", 18.0), "humidity": get("relative_humidity_2m"),
-               "rain_chance": get("precipitation_probability"), "wind_kmh": get("wind_speed_10m"), "uv": get("uv_index"),
+               "rain_chance": get("precipitation_probability"), "clouds": get("cloud_cover"), "wind_kmh": get("wind_speed_10m"),
+               "wind_dir": get("wind_direction_10m"), "uv": get("uv_index"),
                "verdict": verdict(values[j], profile)}
         row["score"] = score(row["naqi"], row["temp"], row["humidity"], row["wind_kmh"], row["uv"], profile)
         rows.append(row)
@@ -227,13 +228,13 @@ async def chat(request: ChatRequest):
     return {"reply": await advisor.reply(request.messages, profile, request.lat, request.lon, tools)}
 
 
-app = FastAPI(title="WebVision2")
+app = FastAPI(title="BreathEasy")
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 
 async def upstream_error(request, exc):
     log.warning("upstream error on %s: %r", request.url.path, exc)
-    if isinstance(exc, APIError) and exc.code == 429:  # Gemini's request quota
+    if isinstance(exc, APIError) and exc.code in (429, 503):  # Gemini is over quota or overloaded
         return JSONResponse({"detail": "The advisor is busy. Please try again in a minute."}, 429)
     return JSONResponse({"detail": "A data provider is unavailable right now. Please try again shortly."}, 502)
 

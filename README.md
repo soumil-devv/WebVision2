@@ -1,10 +1,10 @@
-# WebVision2
+# BreathEasy
 
 ## Problem statement
 
 Millions of people in Indian cities live with asthma, yet many step outside without knowing how polluted the air around them is, or when it would be safer to go out.
 
-WebVision2 is a website that shows air quality (India's National AQI, NAQI) across the user's surrounding area on a live map. It uses their health profile (asthma, age and activity) to advise when and where it is safest to walk, jog, run or cycle.
+BreathEasy is a website that shows air quality (India's National AQI, NAQI) across the user's surrounding area on a live map. It uses their health profile (asthma, age and activity) to advise when and where it is safest to walk, jog, run or cycle.
 
 **Live site:** https://webvision.kakar.tech
 
@@ -68,4 +68,4 @@ uv run pytest
 
 ## Disclaimer
 
-WebVision2 is not medical advice. Follow your doctor's guidance or your asthma action plan.
+BreathEasy is not medical advice. Follow your doctor's guidance or your asthma action plan.

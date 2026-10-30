@@ -74,11 +74,11 @@ async def air_series(lat, lon):
 async def weather(lat, lon):
     """Current, hourly and 7-day weather in the location's local timezone, times as unix seconds."""
     lat, lon = round(lat, 2), round(lon, 2)
-    return await cached(f"wx:{lat},{lon}", 1800, lambda: get_json(
+    return await cached(f"wx2:{lat},{lon}", 1800, lambda: get_json(
         OPEN_METEO, latitude=lat, longitude=lon, timezone="auto", timeformat="unixtime", forecast_days=7,
         current="temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,cloud_cover,"
                 "wind_speed_10m,wind_direction_10m,uv_index,weather_code",
-        hourly="temperature_2m,relative_humidity_2m,precipitation_probability,cloud_cover,wind_speed_10m,uv_index",
+        hourly="temperature_2m,relative_humidity_2m,precipitation_probability,cloud_cover,wind_speed_10m,wind_direction_10m,uv_index",
         daily="weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,uv_index_max",
     ))
 

@@ -81,7 +81,7 @@ def advice(rows, i):
     """Friendly recommendation for hour i of an outlook, firm when the air is Very poor or Severe."""
     row, when = rows[i], "right now" if i == 0 else f"at {rows[i]['local']}"
     if row["verdict"] == "safe":
-        text = f"The air looks good for going outside {when}, so go ahead and enjoy it."
+        text = f"It should be fine for you to go outside {when}, so go ahead and enjoy it."
     elif row["verdict"] == "caution":
         text = f"It should be okay to go outside {when}, but it would be wise to keep it shorter or easier."
     else:
