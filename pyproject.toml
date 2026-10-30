@@ -1,0 +1,28 @@
+[project]
+name = "webvision2"
+version = "0.1.0"
+description = "Weather and air-quality site with AQI heatmaps and safe-exercise recommendations"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.162.0",
+    "google-genai>=2.34.0",
+    "httpx>=0.28.1",
+    "numpy>=2.5.4",
+    "pydantic>=2.14.2",
+    "python-dotenv>=1.2.4",
+    "upstash-ratelimit>=1.2.0",
+    "upstash-redis>=1.8.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+    "ruff>=0.17.3",
+    "uvicorn>=0.54.0",
+]
+
+[tool.ruff]
+line-length = 130
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebVision</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='7' fill='%2300b050'/></svg>">
+  <meta name="description" content="Weather and air quality (NAQI) with the safest times and places to exercise outdoors.">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-velocity@2.1.4/dist/leaflet-velocity.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <aside id="panel">
+    <header>
+      <h1>WebVision</h1>
+      <p class="muted">Weather and air quality for safer outdoor exercise</p>
+    </header>
+
+    <form id="search" role="search">
+      <input id="q" type="search" placeholder="Search a place…" aria-label="Search a place" required minlength="2">
+      <button>Search</button>
+      <button type="button" id="locate" title="Use my location" aria-label="Use my location">◎</button>
+    </form>
+    <ul id="results"></ul>
+
+    <section class="card">
+      <div id="aqi-now" class="row"><p class="muted">Loading air quality…</p></div>
+      <div id="wx-now"></div>
+    </section>
+
+    <section class="card">
+      <h2>Best time to exercise</h2>
+      <p id="best" class="muted">Loading…</p>
+      <div id="bars" class="bars" aria-hidden="true"></div>
+      <p class="muted small">Next 24 hours. Taller is better; colour shows the verdict for your profile.</p>
+    </section>
+
+    <section class="card">
+      <h2>Your profile</h2>
+      <form id="profile">
+        <label><input type="checkbox" name="asthma"> Asthma or another respiratory condition</label>
+        <label>Age
+          <select name="age"><option value="child">Child</option><option value="adult">Adult</option><option value="senior">60+</option></select>
+        </label>
+        <label>Activity
+          <select name="activity"><option value="walk">Walk</option><option value="jog">Jog</option><option value="run">Run</option><option value="cycle">Cycle</option></select>
+        </label>
+      </form>
+      <p id="limits" class="muted small"></p>
+    </section>
+
+    <section class="card">
+      <h2>Cleanest spots nearby</h2>
+      <ol id="spots"><li class="muted">Loading…</li></ol>
+    </section>
+
+    <section class="card">
+      <h2>7-day forecast</h2>
+      <div id="days"></div>
+    </section>
+
+    <p class="muted small">NAQI is estimated from modelled pollution data (OpenWeather) and may differ from local monitors. Not medical advice.</p>
+  </aside>
+
+  <main>
+    <div id="map"></div>
+    <div id="status" role="status" hidden></div>
+    <div id="legend" class="overlay"></div>
+    <div id="timebar" class="overlay">
+      <button id="play" aria-label="Play forecast">▶</button>
+      <input id="hour" type="range" min="0" max="47" value="0" aria-label="Forecast hour">
+      <span id="hour-label"></span>
+      <label><input type="checkbox" id="wind-toggle"> Wind</label>
+    </div>
+  </main>
+
+  <button id="chat-open">Ask the advisor</button>
+  <section id="chat" aria-label="Health advisor" hidden>
+    <header><strong>Health advisor</strong><button id="chat-close" class="ghost" aria-label="Close">✕</button></header>
+    <div id="log" aria-live="polite"><p class="msg model">Ask me things like “Can I jog at 6 PM near Dwarka?”</p></div>
+    <form id="chat-form">
+      <input id="msg" placeholder="Ask about air quality or exercise…" aria-label="Message" required maxlength="2000" autocomplete="off">
+      <button>Send</button>
+    </form>
+  </section>
+
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet-velocity@2.1.4/dist/leaflet-velocity.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
