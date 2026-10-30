@@ -163,7 +163,7 @@ function renderWindow(w) {
 
 function renderSpots(spots) {
   spotLayer.clearLayers();
-  if (!spots.length) return $("#spots").replaceChildren(el("li", { className: "muted" }, "No named parks or tracks within 4 km."));
+  if (!spots.length) return $("#spots").replaceChildren(el("li", { className: "muted" }, "No named parks found within 4 km."));
   $("#spots").replaceChildren(...spots.map((s) => {
     L.circleMarker([s.lat, s.lon], { radius: 7, color: VERDICT[s.verdict], weight: 3 }).bindTooltip(s.name).addTo(spotLayer);
     return el("li", {},

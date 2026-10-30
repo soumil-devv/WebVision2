@@ -77,6 +77,22 @@ def score(value, temp, humidity, wind_kmh, uv, profile):
     return round(100 - penalty)
 
 
+def advice(rows, i):
+    """Friendly recommendation for hour i of an outlook, firm when the air is Very poor or Severe."""
+    row, when = rows[i], "right now" if i == 0 else f"at {rows[i]['local']}"
+    if row["verdict"] == "safe":
+        text = f"The air looks good for going outside {when}, so go ahead and enjoy it."
+    elif row["verdict"] == "caution":
+        text = f"It should be okay to go outside {when}, but it would be wise to keep it shorter or easier."
+    else:
+        text = (f"You SHOULD NOT be going outside {when} unless it is absolutely essential." if row["naqi"] > 300
+                else f"You should avoid going outside {when}.")
+        later = next((r for r in rows[i + 1:i + 7] if r["verdict"] != "avoid"), None)
+        text += (f" It would be better to go out at {later['local']}, when NAQI should be around {later['naqi']}." if later
+                 else " The air isn't expected to improve enough in the next few hours.")
+    return text + " This is about spending time outside in the open air; travelling in a car or similar vehicle would affect you much less."
+
+
 STEPS = (0.02, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0)
 
 

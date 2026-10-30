@@ -14,7 +14,7 @@ WebVision2 is a website that shows air quality (India's National AQI, NAQI) acro
 - **48-hour forecast slider:** drag or play through the coming hours to see how air quality is expected to change.
 - **Personal health profile:** asthma, age and activity type change the safe and avoid limits. The profile is stored only in the browser.
 - **Best time to exercise:** an hourly 0–100 score combining NAQI, temperature, humidity, wind and UV.
-- **Cleanest spots nearby:** named parks and tracks within 4 km, ranked by air quality and distance.
+- **Cleanest spots nearby:** named parks within 4 km, ranked by air quality and distance.
 - **Wind layer:** animated particles showing where the air is moving.
 - **AI health advisor:** a chat, powered by Gemini, that answers questions like "Can I jog at 6 PM near Dwarka?" using the app's live data.
 - **Weather:** current conditions and a 7-day forecast, including rain chance, humidity, wind, cloud cover and UV.
@@ -27,7 +27,7 @@ WebVision2 is a website that shows air quality (India's National AQI, NAQI) acro
 | Frontend | HTML, CSS, JavaScript, Leaflet, leaflet-velocity |
 | Air quality and place search | OpenWeather |
 | Weather and wind | Open-Meteo |
-| Parks and tracks | OpenStreetMap (Overpass API) |
+| Parks | OpenStreetMap (Nominatim) |
 | Map tiles | MapTiler |
 | AI advisor | Gemini API |
 | Cache and rate limiting | Upstash Redis |
@@ -64,7 +64,7 @@ uv run pytest
 - NAQI values are estimates from modelled pollution data, so they may differ from local monitoring stations.
 - NAQI breakpoints should be checked against the current CPCB publication.
 - The health profile limits are starting values and have not been clinically validated.
-- Cleanest spots depends on public OpenStreetMap servers and can fail when they are busy.
+- Cleanest spots uses OpenStreetMap's free Nominatim service, which allows light use only, and parks named just "Park" are left out.
 
 ## Disclaimer
 

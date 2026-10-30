@@ -8,18 +8,17 @@ from fastapi import HTTPException
 from google import genai
 from google.genai import types
 
-from analysis import limits
-
 MAX_TOOL_ROUNDS = 5
 TOOL_TIMEOUT_S = 25
 GEMINI_TIMEOUT_MS = 30_000
 PROMPT = """You are WebVision's outdoor-exercise and air-quality advisor for India.
 Only answer questions about weather, air quality (India's National AQI, NAQI) and when or where to walk, jog, run or cycle outdoors; politely decline anything else.
-Never guess numbers. Look places up with find_place, then use hourly_outlook and safe_spots_near. Quote the NAQI, its dominant pollutant and the local time you mean.
+Never guess numbers. Look places up with find_place, then use hourly_outlook and safe_spots_near. Quote the NAQI, its dominant pollutant (written like PM2.5 or O3) and the local time you mean.
 Times are local to the place. The first hourly_outlook row is the current hour; a time such as "6 PM" with no day means the first matching row from the start of the list.
 Never diagnose or suggest medication; for health concerns, tell the user to follow their doctor's advice or asthma action plan.
-Reply in plain text without markdown, in at most 120 words, and end with "Not medical advice."
-User profile: {profile}. For this profile, NAQI up to {safe} is safe and above {avoid} should be avoided.
+Each hourly_outlook row has an "advice" field. For any question about going outside, include the advice of the hour being asked about, copied word for word, whatever the NAQI. Never change, soften or contradict it, and never add your own verdict. You are warm and friendly in anything you add around it.
+Reply in plain text without markdown, in at most 150 words, and end with "Not medical advice."
+User profile: {profile}.
 The user's map is centred on lat {lat}, lon {lon}. Current UTC time: {now}."""
 
 
@@ -27,9 +26,8 @@ async def reply(messages, profile, lat, lon, tools):
     """Answer the latest message. tools are async functions Gemini may call; their docstrings describe them."""
     if not os.getenv("GEMINI_API_KEY"):
         raise HTTPException(503, "The AI advisor is not configured.")
-    safe, avoid = limits(profile)
     config = types.GenerateContentConfig(
-        system_instruction=PROMPT.format(profile=profile.model_dump(), safe=safe, avoid=avoid, lat=round(lat, 4),
+        system_instruction=PROMPT.format(profile=profile.model_dump(), lat=round(lat, 4),
                                          lon=round(lon, 4), now=time.strftime("%Y-%m-%d %H:%M", time.gmtime())),
         tools=tools,
         automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),

@@ -24,7 +24,7 @@ from upstash_ratelimit.asyncio import Ratelimit, SlidingWindow
 
 import advisor
 import services
-from analysis import Profile, category, grid, idw, limits, naqi, score, verdict
+from analysis import Profile, advice, category, grid, idw, limits, naqi, score, verdict
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("httpx").setLevel(logging.WARNING)  # its INFO lines include request URLs, which carry API keys
@@ -108,6 +108,8 @@ async def safe_window(lat, lon, profile):
         rows.append(row)
     if not rows:
         raise HTTPException(502, "No forecast is available for this location right now.")
+    for i, row in enumerate(rows):
+        row["advice"] = advice(rows, i)
     safe, avoid = limits(profile)
     # Suggest waking hours (5 AM - 9 PM local), preferring hours that aren't "avoid".
     awake = [r for r in rows[:24] if 5 <= time.gmtime(r["time"] + wx["utc_offset_seconds"]).tm_hour <= 21] or rows[:24]
@@ -116,7 +118,7 @@ async def safe_window(lat, lon, profile):
 
 
 async def safe_spots(lat, lon, profile):
-    """The three named parks or tracks within 4 km with the lowest NAQI now (nearest first on ties)."""
+    """The three named parks within 4 km with the lowest NAQI now (nearest first on ties)."""
     found = await services.parks(lat, lon)
     snap = lambda x: round(round(x / 0.05) * 0.05, 2)  # air data is coarse; share one sample per ~5 km
     keys = sorted({(snap(p["lat"]), snap(p["lon"])) for p in found})
@@ -128,7 +130,7 @@ async def safe_spots(lat, lon, profile):
               "distance_km": round(111.32 * math.hypot(p["lat"] - lat, (p["lon"] - lon) * math.cos(math.radians(lat))), 1)}
              for p in found]
     unique = {}
-    for s in sorted(spots, key=lambda s: (s["naqi"], s["distance_km"])):
+    for s in sorted((s for s in spots if s["distance_km"] <= 4), key=lambda s: (s["naqi"], s["distance_km"])):
         unique.setdefault(s["name"], s)  # one entry per name (OSM often splits a park into parts)
     return list(unique.values())[:3]
 
@@ -212,12 +214,13 @@ async def chat(request: ChatRequest):
         return await services.geocode(name)
 
     async def hourly_outlook(lat: float, lon: float) -> dict:
-        """Hourly NAQI, dominant pollutant, weather, exercise score (0-100) and verdict for the next 48 hours at a
-        location, in local time, for the user's health profile. 'best' is the best hour in the next 24 hours."""
+        """Hourly NAQI, dominant pollutant, weather, exercise score (0-100) and written advice for the next 48 hours at
+        a location, in local time, for the user's health profile. The first row is the current hour; 'best' is the
+        best hour in the next 24 hours."""
         return await safe_window(lat, lon, profile)
 
     async def safe_spots_near(lat: float, lon: float) -> list:
-        """Up to three named parks or tracks within 4 km of a location with the cleanest air right now."""
+        """Up to three named parks within 4 km of a location with the cleanest air right now."""
         return await safe_spots(lat, lon, profile)
 
     tools = [find_place, hourly_outlook, safe_spots_near]
@@ -230,6 +233,8 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 async def upstream_error(request, exc):
     log.warning("upstream error on %s: %r", request.url.path, exc)
+    if isinstance(exc, APIError) and exc.code == 429:  # Gemini's request quota
+        return JSONResponse({"detail": "The advisor is busy. Please try again in a minute."}, 429)
     return JSONResponse({"detail": "A data provider is unavailable right now. Please try again shortly."}, 502)
 
 

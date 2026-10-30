@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from analysis import Profile, category, grid, idw, naqi, score, verdict
+from analysis import Profile, advice, category, grid, idw, naqi, score, verdict
 
 POLLUTANTS = ("pm2_5", "pm10", "no2", "o3", "co", "so2", "nh3")
 
@@ -50,3 +50,32 @@ def test_idw_reproduces_samples():
     values = np.array([[10.0, 30.0]])
     out = idw([(0, 0), (0, 1)], values, [0], [0, 0.5, 1])
     assert out[0] == pytest.approx([10, 20, 30])
+
+
+ASTHMA = Profile(asthma=True)
+
+
+def outlook(*values, profile=ASTHMA):
+    return [{"local": f"Fri {14 + i}:00", "naqi": v, "verdict": verdict(v, profile)} for i, v in enumerate(values)]
+
+
+def test_advice_suggests_a_later_hour_when_air_improves():
+    text = advice(outlook(180, 150, 110, 70), 0)
+    assert "You should avoid going outside right now." in text
+    assert "better to go out at Fri 17:00, when NAQI should be around 70" in text
+
+
+def test_advice_never_suggests_an_hour_that_is_still_avoid():
+    text = advice(outlook(180, 150, 150, 150, 150, 150, 150, 50), 0)
+    assert "isn't expected to improve" in text and "Fri 21:00" not in text
+
+
+@pytest.mark.parametrize("profile", [Profile(), Profile(asthma=True)])
+def test_advice_is_firm_above_300_for_every_profile(profile):
+    assert "You SHOULD NOT be going outside right now unless it is absolutely essential." in advice(outlook(340, profile=profile), 0)
+
+
+def test_advice_is_friendly_otherwise_and_always_covers_vehicles():
+    rows = outlook(40, 80)
+    assert "go ahead" in advice(rows, 0) and "okay" in advice(rows, 1) and "at Fri 15:00" in advice(rows, 1)
+    assert all("car or similar vehicle" in advice(rows, i) for i in range(2))

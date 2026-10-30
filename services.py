@@ -1,8 +1,9 @@
-"""External data sources (OpenWeather, Open-Meteo, Overpass) behind one small cache."""
+"""External data sources (OpenWeather, Open-Meteo, Nominatim) behind one small cache."""
 
 import asyncio
 import json
 import logging
+import math
 import os
 import time
 
@@ -13,7 +14,7 @@ log = logging.getLogger("webvision")
 
 OWM = "https://api.openweathermap.org"
 OPEN_METEO = "https://api.open-meteo.com/v1/forecast"
-OVERPASS = ("https://overpass-api.de/api/interpreter", "https://maps.mail.ru/osm/tools/overpass/api/interpreter")
+NOMINATIM = "https://nominatim.openstreetmap.org/search"
 POLLUTANTS = ("pm2_5", "pm10", "no2", "o3", "co", "so2", "nh3")
 
 # Upstash when configured (shared across serverless instances), else a per-instance dict.
@@ -102,24 +103,16 @@ async def geocode(query):
     return [{k: p.get(k) for k in ("name", "state", "country", "lat", "lon")} for p in places]
 
 
-async def parks(lat, lon, radius_m=4000):
-    """Named parks, gardens and running tracks near a point, from OpenStreetMap."""
+async def parks(lat, lon, radius_km=4):
+    """Named parks around a point, from OpenStreetMap's Nominatim search. Cached, as its usage policy asks."""
     lat, lon = round(lat, 3), round(lon, 3)
-    # Exact tags on ways/relations are far cheaper for Overpass than a regex over every element type.
-    area = f"[name](around:{radius_m},{lat},{lon});"
-    query = f"[out:json][timeout:15];({''.join(f'wr[leisure={t}]{area}' for t in ('park', 'garden', 'track'))});out center 80;"
+    dlat, dlon = radius_km / 111.32, radius_km / (111.32 * math.cos(math.radians(lat)))
 
     async def fetch():
-        for url in OVERPASS:  # public Overpass servers are often busy, so try the next one
-            try:
-                data = await get_json(url, timeout=12, data=query)
-                break
-            except httpx.HTTPError as e:
-                log.warning("Overpass %s failed: %r", url, e)
-                error = e
-        else:
-            raise error
-        return [{"name": e["tags"]["name"], "lat": e["center"]["lat"], "lon": e["center"]["lon"]}
-                for e in data["elements"] if "center" in e]
+        found = await get_json(NOMINATIM, timeout=10, q="park", format="jsonv2", limit=40, bounded=1,
+                               viewbox=f"{lon - dlon},{lat + dlat},{lon + dlon},{lat - dlat}")
+        # Many small parks are named just "Park", which tells the user nothing.
+        return [{"name": p["name"], "lat": float(p["lat"]), "lon": float(p["lon"])} for p in found
+                if p.get("category") == "leisure" and p.get("name", "").lower() not in ("", "park")]
 
     return await cached(f"parks:{lat},{lon}", 86400, fetch)
